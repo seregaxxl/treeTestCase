@@ -4,9 +4,15 @@ type Item = {
     label: string;
   };
   
+  type HistoryEntry = {
+    action: 'add' | 'remove' | 'update';
+    item: Item;
+    previousItem?: Item;
+  };
+  
   class TreeStore {
     private items: Map<string | number, Item> = new Map();
-    private history: Item[][] = [];
+    private history: HistoryEntry[] = [];
     private historyIndex: number = -1;
   
     constructor(items: Item[]) {
@@ -47,40 +53,67 @@ type Item = {
     }
   
     addItem(item: Item): void {
-      this.saveHistory();
+      this.saveHistory({ action: 'add', item });
       this.items.set(item.id, item);
     }
   
     removeItem(id: string | number): void {
-      this.saveHistory();
-      const toRemove = [id, ...this.getAllChildren(id).map((child) => child.id)];
-      toRemove.forEach((removeId) => this.items.delete(removeId));
+      const removedItems = [this.getItem(id), ...this.getAllChildren(id).map(child => this.getItem(child.id))].filter(Boolean) as Item[];
+      removedItems.forEach(item => this.saveHistory({ action: 'remove', item }));
+      removedItems.forEach(item => this.items.delete(item.id));
     }
   
     updateItem(updatedItem: Item): void {
-      if (this.items.has(updatedItem.id)) {
-        this.saveHistory();
+      const previousItem = this.getItem(updatedItem.id);
+      if (previousItem) {
+        this.saveHistory({ action: 'update', item: updatedItem, previousItem });
         this.items.set(updatedItem.id, updatedItem);
       }
     }
   
-    private saveHistory(): void {
+    private saveHistory(entry: HistoryEntry): void {
       this.history = this.history.slice(0, this.historyIndex + 1);
-      this.history.push(this.getAll());
+      this.history.push(entry);
       this.historyIndex++;
     }
   
     undo(): void {
-      if (this.historyIndex > 0) {
+      if (this.historyIndex >= 0) {
+        const lastAction = this.history[this.historyIndex];
         this.historyIndex--;
-        this.items = new Map(this.history[this.historyIndex].map((item) => [item.id, item]));
+        
+        switch (lastAction.action) {
+          case 'add':
+            this.items.delete(lastAction.item.id);
+            break;
+          case 'remove':
+            this.items.set(lastAction.item.id, lastAction.item);
+            break;
+          case 'update':
+            if (lastAction.previousItem) {
+              this.items.set(lastAction.previousItem.id, lastAction.previousItem);
+            }
+            break;
+        }
       }
     }
   
     redo(): void {
       if (this.historyIndex < this.history.length - 1) {
         this.historyIndex++;
-        this.items = new Map(this.history[this.historyIndex].map((item) => [item.id, item]));
+        const redoAction = this.history[this.historyIndex];
+        
+        switch (redoAction.action) {
+          case 'add':
+            this.items.set(redoAction.item.id, redoAction.item);
+            break;
+          case 'remove':
+            this.items.delete(redoAction.item.id);
+            break;
+          case 'update':
+            this.items.set(redoAction.item.id, redoAction.item);
+            break;
+        }
       }
     }
   }
