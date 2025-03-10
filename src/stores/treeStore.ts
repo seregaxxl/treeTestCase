@@ -10,10 +10,10 @@ type Item = {
     previousItem?: Item;
   };
   
-  class TreeStore {
+  export class TreeStore {
     private items: Map<string | number, Item> = new Map();
-    private history: HistoryEntry[] = [];
-    private historyIndex: number = -1;
+     history: HistoryEntry[] = [];
+     historyIndex: number = -1;
   
     constructor(items: Item[]) {
       items.forEach((item) => this.items.set(item.id, item));
